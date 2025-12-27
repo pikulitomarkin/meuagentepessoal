@@ -2,8 +2,18 @@ import os
 from dotenv import load_dotenv
 import requests
 from flask import Flask, request, jsonify
+import spacy
+
 
 load_dotenv()
+
+# Carrega modelo spaCy para português
+try:
+    nlp = spacy.load("pt_core_news_md")
+except OSError:
+    import subprocess
+    subprocess.run(["python", "-m", "spacy", "download", "pt_core_news_md"])
+    nlp = spacy.load("pt_core_news_md")
 
 EVOLUTION_API_KEY = os.getenv('EVOLUTION_API_KEY')
 EVOLUTION_API_URL = os.getenv('EVOLUTION_API_URL')
@@ -19,18 +29,49 @@ print(f"📡 Evolution API URL: {EVOLUTION_API_URL}")
 print(f"🤖 Modelo OpenAI: {OPENAI_MODEL}")
 print(f"📱 Instância: {INSTANCE_NAME}")
 
-# Função para gerar resposta usando OpenAI
+
+# Dicionário simples de gírias para demonstração
+GIRIAS = {
+    "mano": "amigo",
+    "parça": "parceiro",
+    "top": "excelente",
+    "zuado": "com problema",
+    "bolado": "chateado",
+    "daora": "legal",
+    "trampo": "trabalho",
+    "rolê": "passeio",
+    "mó": "muito",
+    "bora": "vamos",
+    "de boa": "tudo certo",
+    "papo reto": "falando sério"
+}
+
+def substituir_girias(texto):
+    doc = nlp(texto)
+    tokens = []
+    for token in doc:
+        t = token.text.lower()
+        if t in GIRIAS:
+            tokens.append(GIRIAS[t])
+        else:
+            tokens.append(token.text)
+    return " ".join(tokens)
+
+# Função para gerar resposta usando OpenAI, com pré-processamento de gírias
 def gerar_resposta(mensagem):
     from openai import OpenAI
     print(f"🧠 Gerando resposta para: {mensagem[:50]}...")
+    # Pré-processa mensagem para adaptar gírias
+    mensagem_processada = substituir_girias(mensagem)
     try:
         client = OpenAI(api_key=OPENAI_API_KEY)
         completion = client.chat.completions.create(
             model=OPENAI_MODEL,
-            messages=[{"role": "system", "content": PROMPT}, {"role": "user", "content": mensagem}]
+            messages=[{"role": "system", "content": PROMPT}, {"role": "user", "content": mensagem_processada}]
         )
         resposta = completion.choices[0].message.content
         print(f"   Resposta gerada: {resposta[:50]}...")
+        # Pós-processamento opcional: pode adaptar resposta para soar mais "gente como a gente"
         return resposta
     except Exception as e:
         print(f"   Erro ao gerar resposta com OpenAI: {e}")
